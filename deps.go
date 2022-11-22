@@ -83,7 +83,7 @@ func ProvideScoped[V any](scoped *Scope, provider Provider[V]) {
 
 // Invokes a function passing provided values from the global scope as arguments. Any argument
 // types that do not have a constant or provider will get their default value.
-func Invoke(fn any) ([]any, error) {
+func Invoke(fn any) (Result, error) {
 	return global.Invoke(fn)
 }
 
@@ -374,7 +374,7 @@ func (scope *Scope) hydrateType(key reflect.Type) (reflect.Value, error) {
 // argument to a provided type and the provider has a AfterPointerUse defined it will
 // be called after the function returns. If any values were created on this scope with
 // a lifetime of once they will be freed after the function returns.
-func (scope *Scope) Invoke(fn any) ([]any, error) {
+func (scope *Scope) Invoke(fn any) (Result, error) {
 	fnValue := reflect.ValueOf(fn)
 	fnType := reflect.TypeOf(fn)
 
@@ -417,7 +417,18 @@ func (scope *Scope) Invoke(fn any) ([]any, error) {
 	for i := 0; i < len(results); i++ {
 		results[i] = resultsReflect[i].Interface()
 	}
-	return results, nil
+	return Result(results), nil
+}
+
+type Result []any
+
+func (r Result) Err() error {
+	for _, result := range r {
+		if err, ok := result.(error); ok {
+			return err
+		}
+	}
+	return nil
 }
 
 type multiError struct {
