@@ -1,6 +1,7 @@
 package deps
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -188,4 +189,81 @@ func TestArray(t *testing.T) {
 			t.Errorf("Hydrating array port failed")
 		}
 	})
+}
+
+type Request interface {
+	GetBody() any
+	SetStatus(status int)
+}
+type MyRequest[B any] struct {
+	body   B
+	status int
+}
+
+var _ Request = &MyRequest[string]{}
+
+func (mr MyRequest[B]) GetBody() any {
+	return mr.body
+}
+func (mr *MyRequest[B]) SetStatus(status int) {
+	mr.status = status
+}
+
+func TestDynamic(t *testing.T) {
+	intType := TypeOf[int]()
+	stringType := TypeOf[string]()
+	requestType := TypeOf[Request]()
+
+	if fmt.Sprintf("%v", intType) != "int" {
+		t.Errorf("Error creating int type")
+	}
+	if fmt.Sprintf("%v", stringType) != "string" {
+		t.Errorf("Error creating string type")
+	}
+	if fmt.Sprintf("%v", requestType) != "deps.Request" {
+		t.Errorf("Error creating interface type")
+	}
+
+	// fmt.Printf("%v, %v, %v\n", intType, stringType, requestType)
+
+	s := New()
+	s.Dynamic = func(typ reflect.Type, scope *Scope) (any, error) {
+		if typ == intType {
+			return 42, nil
+		} else if typ == stringType {
+			return "abc", nil
+		} else if typ == requestType {
+			return &MyRequest[string]{body: "My Body"}, nil
+		} else if reflect.PointerTo(typ).Implements(requestType) {
+			val := reflect.New(typ).Interface() // MyRequest[V]
+			if req, ok := val.(Request); ok {
+				req.SetStatus(200)
+			}
+			return val, nil
+		}
+		return nil, nil
+	}
+
+	i, _ := GetScoped[int](s)
+	if i == nil || *i != 42 {
+		t.Errorf("dynamic int is not 42: %v", i)
+	}
+
+	str, _ := GetScoped[string](s)
+	if str == nil || *str != "abc" {
+		t.Errorf("dynamic string is not abc: %v", str)
+	}
+
+	r1, _ := GetScoped[Request](s)
+	if r1 == nil || (*r1).GetBody() != "My Body" {
+		t.Errorf("dynamic request is not My Body: %+v", r1)
+	}
+
+	r2, _ := GetScoped[MyRequest[bool]](s)
+	if r2 == nil || (*r2).GetBody() != false {
+		t.Errorf("dynamic my request is not false: %+v", r2)
+	}
+	if r2.status != 200 {
+		t.Errorf("dynamic my request does not have a status of 200: %+v", r2.status)
+	}
 }

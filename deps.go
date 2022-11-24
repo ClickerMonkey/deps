@@ -23,6 +23,10 @@ func Global() *Scope {
 	return global
 }
 
+// A dynamic provider if a requested type does not have value or provider.
+// If the value returned is not the expected type a ErrNoProvider will be thrown.
+type DynamicProvider func(typ reflect.Type, scope *Scope) (any, error)
+
 // Sets a constant value on the global scope.
 func Set[V any](value *V) {
 	SetScoped(global, value)
@@ -30,7 +34,7 @@ func Set[V any](value *V) {
 
 // Sets a constant value on the given scope.
 func SetScoped[V any](scope *Scope, value *V) {
-	key := keyOf[V]()
+	key := TypeOf[V]()
 	scope.instances[key] = value
 }
 
@@ -40,16 +44,33 @@ func Get[V any]() (*V, error) {
 }
 
 // Returns a constant value from the given scope and an error if there was an error
-// trying to create the value.
+// trying to create the value. If a value with the expected type does not exist
+// in this scope or its parent and a dynamic provider is defined that is called.
+// If the result of the dynamic pointer is type V or *V then it's returned without error.
 func GetScoped[V any](scope *Scope) (*V, error) {
-	key := keyOf[V]()
+	key := TypeOf[V]()
 	if instance, exists := scope.instances[key]; exists {
 		return instance.(*V), nil
 	}
 	provider := scope.providers[key]
 	if provider == nil {
 		if scope.parent != nil {
-			return GetScoped[V](scope.parent)
+			par, err := GetScoped[V](scope.parent)
+			if err == nil || err != ErrNoProvider {
+				return par, err
+			}
+		}
+		if scope.Dynamic != nil {
+			dyn, err := scope.Dynamic(key, scope)
+			if err != nil {
+				return nil, err
+			}
+			if val, ok := dyn.(*V); ok {
+				return val, nil
+			}
+			if val, ok := dyn.(V); ok {
+				return &val, nil
+			}
 		}
 		return nil, ErrNoProvider
 	}
@@ -74,7 +95,7 @@ func Provide[V any](provider Provider[V]) {
 // be notified about a potential value change when Invoke is called with a function which accepts
 // the pointer argument.
 func ProvideScoped[V any](scoped *Scope, provider Provider[V]) {
-	key := keyOf[V]()
+	key := TypeOf[V]()
 	scoped.providers[key] = &providerLink[V]{
 		key:      key,
 		provider: provider,
@@ -94,9 +115,8 @@ func Hydrate(value any) error {
 }
 
 // Returns the reflect.Type of V
-func keyOf[V any]() reflect.Type {
-	var key V
-	return reflect.TypeOf(key)
+func TypeOf[V any]() reflect.Type {
+	return reflect.TypeOf((*V)(nil)).Elem()
 }
 
 // How long values should last in a scope.
@@ -172,8 +192,9 @@ type Provider[V any] struct {
 }
 
 type Scope struct {
-	parent *Scope
+	Dynamic DynamicProvider
 
+	parent    *Scope
 	providers map[reflect.Type]link
 	instances map[reflect.Type]any
 }
@@ -229,7 +250,19 @@ func (scope *Scope) Get(key reflect.Type) (any, error) {
 	link := scope.providers[key]
 	if link == nil {
 		if scope.parent != nil {
-			return scope.parent.Get(key)
+			par, err := scope.parent.Get(key)
+			if err == nil || err != ErrNoProvider {
+				return par, err
+			}
+		}
+		if scope.Dynamic != nil {
+			dyn, err := scope.Dynamic(key, scope)
+			if err != nil {
+				return nil, err
+			}
+			if dyn != nil {
+				return dyn, err
+			}
 		}
 		return nil, ErrNoProvider
 	}
