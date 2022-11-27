@@ -21,10 +21,9 @@ type Param[V any] struct {
   Value V
 }
 // Dynamic values, essential for generics
-func (p Param[V]) ProvideDynamic(scope *Scope, typ reflect.Type) (any, error) {
-  val := reflect.New(typ).Interface()
-  // do stuff
-  return val, nil
+func (p *Param[V]) ProvideDynamic(scope *Scope) error {
+  // populate p
+  return nil
 }
 
 func main() {

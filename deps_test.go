@@ -274,15 +274,14 @@ type Gen[V any] struct {
 
 var _ Dynamic = &Gen[int]{}
 
-func (g Gen[V]) ProvideDynamic(scope *Scope, typ reflect.Type) (any, error) {
-	val := reflect.New(typ).Interface()
-	if gint, ok := val.(*Gen[int]); ok {
+func (g *Gen[V]) ProvideDynamic(scope *Scope) error {
+	if gint, ok := any(g).(*Gen[int]); ok {
 		gint.Value = 42
 	}
-	if gstr, ok := val.(*Gen[string]); ok {
+	if gstr, ok := any(g).(*Gen[string]); ok {
 		gstr.Value = "Hello World"
 	}
-	return val, nil
+	return nil
 }
 
 func TestDynamicValue(t *testing.T) {

@@ -32,10 +32,10 @@ type DynamicProvider func(typ reflect.Type, scope *Scope) (any, error)
 // generics and the types are not known ahead of time or there are too many to be
 // individually provided.
 type Dynamic interface {
-	// Given the scope its trying to be created in, the specific type, try to return
-	// the provided value. If there wsa an error it will be passed up through the
-	// invokation or the hydration request.
-	ProvideDynamic(scope *Scope, typ reflect.Type) (any, error)
+	// Given the scope its trying to be created in, the specific type, try to populate
+	// the instance of this value. If there was an error it will be passed up through
+	// the invokation or the hydration request.
+	ProvideDynamic(scope *Scope) error
 }
 
 // The reflection type for Dynamic.
@@ -90,10 +90,11 @@ func GetScoped[V any](scope *Scope) (*V, error) {
 		}
 		dynamic := GetDynamic(key)
 		if dynamic != nil {
-			dyn, err := dynamic.ProvideDynamic(scope, key)
+			err := dynamic.ProvideDynamic(scope)
 			if err != nil {
 				return nil, err
 			}
+			dyn := any(dynamic)
 			if val, ok := dyn.(*V); ok {
 				return val, nil
 			}
@@ -298,13 +299,11 @@ func (scope *Scope) Get(key reflect.Type) (any, error) {
 		}
 		dynamic := GetDynamic(key)
 		if dynamic != nil {
-			dyn, err := dynamic.ProvideDynamic(scope, key)
+			err := dynamic.ProvideDynamic(scope)
 			if err != nil {
 				return nil, err
 			}
-			if dyn != nil {
-				return dyn, nil
-			}
+			return dynamic, nil
 		}
 		if scope.Dynamic != nil {
 			dyn, err := scope.Dynamic(key, scope)
