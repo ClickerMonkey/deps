@@ -267,3 +267,51 @@ func TestDynamic(t *testing.T) {
 		t.Errorf("dynamic my request does not have a status of 200: %+v", r2.status)
 	}
 }
+
+type Gen[V any] struct {
+	Value V
+}
+
+var _ Dynamic = &Gen[int]{}
+
+func (g Gen[V]) ProvideDynamic(scope *Scope, typ reflect.Type) (any, error) {
+	val := reflect.New(typ).Interface()
+	if gint, ok := val.(*Gen[int]); ok {
+		gint.Value = 42
+	}
+	if gstr, ok := val.(*Gen[string]); ok {
+		gstr.Value = "Hello World"
+	}
+	return val, nil
+}
+
+func TestDynamicValue(t *testing.T) {
+	s := New()
+	gint, _ := GetScoped[Gen[int]](s)
+
+	if gint == nil {
+		t.Errorf("Failure creating Dynamic Gen[int]")
+		return
+	}
+
+	if gint.Value != 42 {
+		t.Errorf("Failure setting value of Gen[int]")
+	}
+
+	gstr, _ := GetScoped[Gen[string]](s)
+
+	if gstr == nil {
+		t.Errorf("Failure creating Dynamic Gen[gstrin]")
+		return
+	}
+
+	if gstr.Value != "Hello World" {
+		t.Errorf("Failure setting value of Gen[string]")
+	}
+
+	s.Invoke(func(gint Gen[int]) {
+		if gint.Value != 42 {
+			t.Errorf("Failure passing argument of Gen[int]")
+		}
+	})
+}

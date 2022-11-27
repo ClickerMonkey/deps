@@ -27,6 +27,34 @@ func Global() *Scope {
 // If the value returned is not the expected type a ErrNoProvider will be thrown.
 type DynamicProvider func(typ reflect.Type, scope *Scope) (any, error)
 
+// If a type to be provided doesn't have a provider but implements this interface
+// the type itself becomes a provider. This is especially useful for types with
+// generics and the types are not known ahead of time or there are too many to be
+// individually provided.
+type Dynamic interface {
+	// Given the scope its trying to be created in, the specific type, try to return
+	// the provided value. If there wsa an error it will be passed up through the
+	// invokation or the hydration request.
+	ProvideDynamic(scope *Scope, typ reflect.Type) (any, error)
+}
+
+// The reflection type for Dynamic.
+var dynamicType = TypeOf[Dynamic]()
+
+// Given a type it returns an instance of it if it implements the Dynamic interface.
+// If it does not, nil is returned.
+func GetDynamic(typ reflect.Type) Dynamic {
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+	ptr := reflect.PointerTo(typ)
+	if !ptr.Implements(dynamicType) {
+		return nil
+	}
+	val := reflect.New(typ).Interface()
+	return val.(Dynamic)
+}
+
 // Sets a constant value on the global scope.
 func Set[V any](value *V) {
 	SetScoped(global, value)
@@ -58,6 +86,19 @@ func GetScoped[V any](scope *Scope) (*V, error) {
 			par, err := GetScoped[V](scope.parent)
 			if err == nil || err != ErrNoProvider {
 				return par, err
+			}
+		}
+		dynamic := GetDynamic(key)
+		if dynamic != nil {
+			dyn, err := dynamic.ProvideDynamic(scope, key)
+			if err != nil {
+				return nil, err
+			}
+			if val, ok := dyn.(*V); ok {
+				return val, nil
+			}
+			if val, ok := dyn.(V); ok {
+				return &val, nil
 			}
 		}
 		if scope.Dynamic != nil {
@@ -255,13 +296,23 @@ func (scope *Scope) Get(key reflect.Type) (any, error) {
 				return par, err
 			}
 		}
+		dynamic := GetDynamic(key)
+		if dynamic != nil {
+			dyn, err := dynamic.ProvideDynamic(scope, key)
+			if err != nil {
+				return nil, err
+			}
+			if dyn != nil {
+				return dyn, nil
+			}
+		}
 		if scope.Dynamic != nil {
 			dyn, err := scope.Dynamic(key, scope)
 			if err != nil {
 				return nil, err
 			}
 			if dyn != nil {
-				return dyn, err
+				return dyn, nil
 			}
 		}
 		return nil, ErrNoProvider
