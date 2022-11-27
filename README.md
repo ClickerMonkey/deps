@@ -1,5 +1,5 @@
 # deps
-Dependency injection with Go and generics. Featuring lazy loading, lifetime control, pointer usage detection, a hierarchy, and resource freeing.
+Dependency injection with Go and generics. Featuring lazy loading, lifetime control, pointer usage detection, hierarchal scopes, resource freeing, dynamic providers, and dynamic types.
 
 
 ```go
@@ -17,12 +17,19 @@ type Database struct {
 type UserPreferences struct {
   Name string
 }
+type Param[V any] struct {
+  Value V
+}
+// Dynamic values, essential for generics
+func (p Param[V]) ProvideDynamic(scope *Scope, typ reflect.Type) (any, error) {
+  val := reflect.New(typ).Interface()
+  // do stuff
+  return val, nil
+}
 
 func main() {
-  port := Port(8080)
-
   // Set values or provide functions
-  deps.Set(&port)
+  deps.Set(Port(8080))
 
   // Globally provided value
   deps.Provide(deps.Provider[Env]{
@@ -57,6 +64,12 @@ func main() {
     },
   })
 
+  // Invoke global function
+  deps.Invoke(func(port Port, param Param[string]) {
+    // do stuff with port.
+    // param was dynamically created by an instance of its type, great for generics
+  })
+
   // A child scope from Global
   s := deps.New()
   env, _ := deps.Get[Env]() // get env from global scope
@@ -77,11 +90,13 @@ func main() {
   s.Invoke(func(env Env, prefs *UserPreferences, newName string, age int) {
     prefs.Name = newName // would trigger a notification above
   })
-
-  // Invoke global function
-  deps.Invoke(func(port Port) {
-    // do stuff with port.
-  })
+  
+  // We can also dynamically provide other values that are not set in the scope or its ancestors or
+  // are associated with any providers or implements deps.Dynamic.
+  s.DynamicProvider = func(typ reflect.Type, scope *Scope) (any, error) {
+    // generate value of typ if supported, otherwise return nil, nil
+    return nil, nil
+  }
 
   // For good measure
   deps.Global().Free()
