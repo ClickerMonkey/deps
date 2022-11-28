@@ -82,12 +82,6 @@ func GetScoped[V any](scope *Scope) (*V, error) {
 	}
 	provider := scope.providers[key]
 	if provider == nil {
-		if scope.parent != nil {
-			par, err := GetScoped[V](scope.parent)
-			if err == nil || err != ErrNoProvider {
-				return par, err
-			}
-		}
 		dynamic := GetDynamic(key)
 		if dynamic != nil {
 			err := dynamic.ProvideDynamic(scope)
@@ -112,6 +106,12 @@ func GetScoped[V any](scope *Scope) (*V, error) {
 			}
 			if val, ok := dyn.(V); ok {
 				return &val, nil
+			}
+		}
+		if scope.parent != nil {
+			par, err := GetScoped[V](scope.parent)
+			if err == nil || err != ErrNoProvider {
+				return par, err
 			}
 		}
 		return nil, ErrNoProvider
@@ -291,12 +291,6 @@ func (scope *Scope) Get(key reflect.Type) (any, error) {
 	}
 	link := scope.providers[key]
 	if link == nil {
-		if scope.parent != nil {
-			par, err := scope.parent.Get(key)
-			if err == nil || err != ErrNoProvider {
-				return par, err
-			}
-		}
 		dynamic := GetDynamic(key)
 		if dynamic != nil {
 			err := dynamic.ProvideDynamic(scope)
@@ -312,6 +306,12 @@ func (scope *Scope) Get(key reflect.Type) (any, error) {
 			}
 			if dyn != nil {
 				return dyn, nil
+			}
+		}
+		if scope.parent != nil {
+			par, err := scope.parent.Get(key)
+			if err == nil || err != ErrNoProvider {
+				return par, err
 			}
 		}
 		return nil, ErrNoProvider
