@@ -507,7 +507,7 @@ type Result []any
 
 func (r Result) Err() error {
 	for _, result := range r {
-		if err, ok := result.(error); ok {
+		if err, ok := result.(error); ok && result != nil {
 			return err
 		}
 	}
