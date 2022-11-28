@@ -507,7 +507,10 @@ type Result []any
 
 func (r Result) Err() error {
 	for _, result := range r {
-		if err, ok := result.(error); ok && result != nil {
+		if IsNil(result) {
+			continue
+		}
+		if err, ok := result.(error); ok {
 			return err
 		}
 	}
@@ -531,4 +534,15 @@ func (e multiError) Error() string {
 		}
 		return fmt.Sprintf("multiple errors: %s", strings.Join(errors, ", "))
 	}
+}
+
+func IsNil(i any) bool {
+	if i == nil {
+		return true
+	}
+	switch reflect.TypeOf(i).Kind() {
+	case reflect.Ptr, reflect.Map, reflect.Array, reflect.Chan, reflect.Slice:
+		return reflect.ValueOf(i).IsNil()
+	}
+	return false
 }
