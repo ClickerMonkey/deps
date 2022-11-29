@@ -505,6 +505,7 @@ func (scope *Scope) Invoke(fn any) (Result, error) {
 
 type Result []any
 
+// Returns the first non-nil error in the result.
 func (r Result) Err() error {
 	for _, result := range r {
 		if IsNil(result) {
@@ -515,6 +516,18 @@ func (r Result) Err() error {
 		}
 	}
 	return nil
+}
+
+// Returns the non-nil values in the result.
+func (r Result) Defined() []any {
+	nonNil := make([]any, 0, len(r))
+	for _, result := range r {
+		if IsNil(result) {
+			continue
+		}
+		nonNil = append(nonNil, result)
+	}
+	return nonNil
 }
 
 type multiError struct {
