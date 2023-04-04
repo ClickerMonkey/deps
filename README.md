@@ -17,11 +17,11 @@ type Database struct {
 type UserPreferences struct {
   Name string
 }
-type Param[V any] struct {
+type Path[V any] struct {
   Value V
 }
 // Dynamic values, essential for generics
-func (p *Param[V]) ProvideDynamic(scope *Scope) error {
+func (p *Path[V]) ProvideDynamic(scope *Scope) error {
   // populate p
   return nil
 }
@@ -64,7 +64,7 @@ func main() {
   })
 
   // Invoke global function
-  deps.Invoke(func(port Port, param Param[string]) {
+  deps.Invoke(func(port Port, param Path[string]) {
     // do stuff with port.
     // param was dynamically created by an instance of its type, great for generics
   })
