@@ -1,6 +1,7 @@
 # deps
 Dependency injection with Go and generics. Featuring lazy loading, lifetime control, pointer usage detection, hierarchal scopes, resource freeing, dynamic providers, and dynamic types.
 
+> go get github.com/ClickerMonkey/deps
 
 ```go
 package main
